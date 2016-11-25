@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">BlobTest</string>
+    <string name="blob_provider_authority">com.blobtest.blobs</string>
+</resources>
