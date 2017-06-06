@@ -7,13 +7,15 @@ import {
   Text,
   CameraRoll,
   StatusBar,
+  RefreshControl,
   Platform,
   StyleSheet,
 } from 'react-native';
 import * as firebase from 'firebase';
 import uuid from 'uuid';
 
-const url = 'https://firebasestorage.googleapis.com/v0/b/blobtest-36ff6.appspot.com/o/Obsidian.jar?alt=media&token=93154b97-8bd9-46e3-a51f-67be47a4628a';
+const url =
+  'https://firebasestorage.googleapis.com/v0/b/blobtest-36ff6.appspot.com/o/Obsidian.jar?alt=media&token=93154b97-8bd9-46e3-a51f-67be47a4628a';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyAlZruO2T_JNOWn4ysfX6AryR6Dzm_VVaA',
@@ -32,23 +34,20 @@ type State = {
     progress?: number,
     message?: string,
     status: 'running' | 'passed' | 'failed',
-  }>
-}
+  }>,
+};
 
 class BlobTest extends Component {
   state = {
+    refreshing: false,
     tests: [],
   };
 
   componentDidMount() {
-    this._test('Creates socket connection', t => {
-      const ws = new WebSocket('ws://localhost:7232');
+    this._run();
+  }
 
-      ws.binaryType = 'blob';
-      ws.onerror = t.fail;
-      ws.onopen = t.pass;
-    });
-
+  _run = () => {
     this._test('Receives data from socket', t => {
       const ws = new WebSocket('ws://localhost:7232');
 
@@ -67,7 +66,7 @@ class BlobTest extends Component {
       const req = new XMLHttpRequest();
       req.open('GET', url, true);
       req.responseType = 'blob';
-      req.onprogress = e => t.progress = e.loaded;
+      req.onprogress = e => (t.progress = e.loaded);
       req.onload = () => {
         t.true(req.response instanceof Blob);
       };
@@ -84,24 +83,31 @@ class BlobTest extends Component {
 
     this._test('Creates blob from URI', async t => {
       const { edges } = await CameraRoll.getPhotos({ first: 1 });
-      const blob = await BlobManager.createFromURI(edges[0].node.image.uri, { type: 'image/png' });
+      const blob = await BlobManager.createFromURI(edges[0].node.image.uri, {
+        type: 'image/png',
+      });
 
       t.true(blob instanceof Blob);
     });
 
     this._test('Uploads blob to Firebase', async t => {
       const { edges } = await CameraRoll.getPhotos({ first: 1 });
-      const blob = await BlobManager.createFromURI(edges[0].node.image.uri, { type: 'image/png' });
+      const blob = await BlobManager.createFromURI(edges[0].node.image.uri, {
+        type: 'image/png',
+      });
       const ref = firebase.storage().ref().child(uuid.v4());
 
       const task = ref.put(blob);
 
-      task.on('state_changed', snapshot =>
-        t.progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
+      task.on(
+        'state_changed',
+        snapshot =>
+          (t.progress = snapshot.bytesTransferred / snapshot.totalBytes * 100),
         t.fail,
-        t.pass);
+        t.pass
+      );
     });
-  }
+  };
 
   _test = async (name: string, callback) => {
     const id = uuid.v4();
@@ -114,22 +120,28 @@ class BlobTest extends Component {
       }),
     }));
 
-    const update = data => this.setState(state => ({
-      tests: state.tests.map(test => {
-        if (test.id === id) {
-          return { ...test, ...data };
-        }
-        return test;
-      }),
-    }));
+    const update = data =>
+      this.setState(state => ({
+        tests: state.tests.map(test => {
+          if (test.id === id) {
+            return { ...test, ...data };
+          }
+          return test;
+        }),
+      }));
 
     const t = {
-      pass() { update({ status: 'passed' }); },
+      pass() {
+        update({ status: 'passed' });
+      },
       fail(error: string | Error) {
         update({
           status: 'failed',
-          message: typeof error === 'string' ? error :
-              error instanceof Error || error.message ? error.message : undefined,
+          message: typeof error === 'string'
+            ? error
+            : error instanceof Error || error.message
+              ? error.message
+              : undefined,
         });
       },
       is(value, expected) {
@@ -139,9 +151,15 @@ class BlobTest extends Component {
           t.fail(`Received: ${actual}, Expected: ${expected}`);
         }
       },
-      true(value) { t.is(value, true); },
-      false(value) { t.is(value, false); },
-      set progress(value: number) { update({ progress: value }); },
+      true(value) {
+        t.is(value, true);
+      },
+      false(value) {
+        t.is(value, false);
+      },
+      set progress(value: number) {
+        update({ progress: value });
+      },
     };
 
     try {
@@ -151,36 +169,48 @@ class BlobTest extends Component {
     }
   };
 
+  _handleRefresh = () => {
+    this.setState({ refreshing: true, tests: [] });
+    this._run();
+
+    setTimeout(() => this.setState({ refreshing: false }), 500);
+  };
+
   render() {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor={Platform.OS === 'android' ? 'rgba(0, 0, 0, 0.16)' : 'transparent'} />
-        <ScrollView contentContainerStyle={styles.content}>
-          {this.state.tests.map(test => (
+        {Platform.OS === 'android' &&
+          <StatusBar translucent backgroundColor="rgba(0, 0, 0, 0.16)" />}
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={this.state.refreshing}
+              onRefresh={this._handleRefresh}
+            />
+          }
+          contentContainerStyle={styles.content}
+        >
+          {this.state.tests.map(test =>
             <View key={test.id} style={styles.test}>
               <Text style={styles.emoji}>
                 {test.status === 'failed'
                   ? '😥'
-                  : test.status === 'passed'
-                    ? '😃'
-                    : '🤔'
-                }
+                  : test.status === 'passed' ? '😃' : '🤔'}
               </Text>
               <View>
                 <Text style={styles.name}>
                   {test.name}
                 </Text>
-                <Text style={styles[test.status]}>
+                <Text style={[styles.status, styles[test.status]]}>
                   {test.status === 'failed'
                     ? `Failed ${test.message ? ` - ${test.message}` : ''}`
                     : test.status === 'passed'
                       ? 'Passed'
-                      : `Running ${test.progress ? `(${test.progress})` : ''}`
-                  }
+                      : `Running ${test.progress ? `(${test.progress})` : ''}`}
                 </Text>
               </View>
             </View>
-          ))}
+          )}
         </ScrollView>
       </View>
     );
@@ -211,23 +241,22 @@ const styles = StyleSheet.create({
     width: 32,
   },
   name: {
-    fontFamily: 'monospace',
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
     color: '#fff',
   },
+  status: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
   running: {
-    fontFamily: 'monospace',
     color: '#FECB66',
   },
   passed: {
-    fontFamily: 'monospace',
     color: '#BAE664',
   },
   failed: {
-    fontFamily: 'monospace',
     fontWeight: 'bold',
     color: '#E22933',
   },
 });
 
 AppRegistry.registerComponent('BlobTest', () => BlobTest);
-
