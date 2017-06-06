@@ -9,7 +9,8 @@
   "dependencies": {
     "firebase": "^3.7.4",
     "react": "^16.0.0-alpha.6",
-    "react-native": "file:///Users/satya164/Workspace/Callstack/react-native",
+    "react-native": "file:../react-native",
+    "uuid": "^3.0.1",
     "ws": "^2.2.2"
   },
   "devDependencies": {
