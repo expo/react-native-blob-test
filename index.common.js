@@ -47,15 +47,21 @@ class BlobTest extends Component {
   }
 
   _run = () => {
-    this._test('Receives data from socket', t => {
+    this._test('Send & receives data via socket', t => {
+      let count = 0;
+
       const ws = new WebSocket('ws://localhost:7232');
 
       ws.binaryType = 'blob';
       ws.onerror = t.fail;
       ws.onmessage = e => {
-        t.true(this._isBlob(e.data));
+        if (e.data === 'DONE' && count === 1) {
+          t.pass();
+          return;
+        }
 
-        if (e.data) {
+        if (this._isBlob(e.data)) {
+          count++;
           ws.send(e.data);
         }
       };
@@ -86,6 +92,20 @@ class BlobTest extends Component {
       req.send();
     });
 
+    this._test('Uploads blob via XMLHttpRequest', async t => {
+      const { edges } = await CameraRoll.getPhotos({ first: 1 });
+      const response = await fetch(edges[0].node.image.uri);
+      const blob = await response.blob();
+      const req = new XMLHttpRequest();
+      req.open('POST', `http://localhost:7232/upload?size=${blob.size}`, true);
+      req.onprogress = e => (t.progress = e.loaded);
+      req.onload = () => {
+        t.is(req.response, 'DONE');
+      };
+      req.onerror = t.fail;
+      req.send(blob);
+    });
+
     this._test('Downloads blob via fetch', async t => {
       const response = await fetch(url);
       const blob = await response.blob();
@@ -99,6 +119,15 @@ class BlobTest extends Component {
       const blob = await response.blob();
 
       t.true(this._isBlob(blob));
+    });
+
+    this._test('Uploads blob via fetch', async t => {
+      const { edges } = await CameraRoll.getPhotos({ first: 1 });
+      const response = await fetch(edges[0].node.image.uri);
+      const blob = await response.blob();
+      const response1 = await fetch(`http://localhost:7232/upload?size=${blob.size}`, { method: 'POST', body: blob });
+
+      t.is(await response1.text(), 'DONE');
     });
 
     this._test('Uploads blob to Firebase', async t => {
