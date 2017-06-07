@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import {
   AppRegistry,
-  BlobManager,
   ScrollView,
   View,
   Text,
@@ -54,7 +53,7 @@ class BlobTest extends Component {
       ws.binaryType = 'blob';
       ws.onerror = t.fail;
       ws.onmessage = e => {
-        t.true(e.data instanceof Blob);
+        t.true(this._isBlob(e.data));
 
         if (e.data) {
           ws.send(e.data);
@@ -68,7 +67,20 @@ class BlobTest extends Component {
       req.responseType = 'blob';
       req.onprogress = e => (t.progress = e.loaded);
       req.onload = () => {
-        t.true(req.response instanceof Blob);
+        t.true(this._isBlob(req.response));
+      };
+      req.onerror = t.fail;
+      req.send();
+    });
+
+    this._test('Creates blob from URI via XMLHttpRequest', async t => {
+      const { edges } = await CameraRoll.getPhotos({ first: 1 });
+      const req = new XMLHttpRequest();
+      req.open('GET', edges[0].node.image.uri, true);
+      req.responseType = 'blob';
+      req.onprogress = e => (t.progress = e.loaded);
+      req.onload = () => {
+        t.true(this._isBlob(req.response));
       };
       req.onerror = t.fail;
       req.send();
@@ -78,23 +90,21 @@ class BlobTest extends Component {
       const response = await fetch(url);
       const blob = await response.blob();
 
-      t.true(blob instanceof Blob);
+      t.true(this._isBlob(blob));
     });
 
-    this._test('Creates blob from URI', async t => {
+    this._test('Creates blob from URI via fetch', async t => {
       const { edges } = await CameraRoll.getPhotos({ first: 1 });
-      const blob = await BlobManager.createFromURI(edges[0].node.image.uri, {
-        type: 'image/png',
-      });
+      const response = await fetch(edges[0].node.image.uri);
+      const blob = await response.blob();
 
-      t.true(blob instanceof Blob);
+      t.true(this._isBlob(blob));
     });
 
     this._test('Uploads blob to Firebase', async t => {
       const { edges } = await CameraRoll.getPhotos({ first: 1 });
-      const blob = await BlobManager.createFromURI(edges[0].node.image.uri, {
-        type: 'image/png',
-      });
+      const response = await fetch(edges[0].node.image.uri);
+      const blob = await response.blob();
       const ref = firebase.storage().ref().child(uuid.v4());
 
       const task = ref.put(blob);
@@ -106,6 +116,24 @@ class BlobTest extends Component {
         t.fail,
         t.pass
       );
+    });
+
+    this._test('Reads blob as text', t => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        t.is(e.target.result, 'Hello world');
+      };
+      reader.onerror = t.fail;
+      reader.readAsText(new Blob(['Hello world']));
+    });
+
+    this._test('Reads blob as data URL', t => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        t.is(e.target.result, 'data:application/octet-stream;base64,VGVzdA==');
+      };
+      reader.onerror = t.fail;
+      reader.readAsDataURL(new Blob(['Test']));
     });
   };
 
@@ -120,7 +148,13 @@ class BlobTest extends Component {
       }),
     }));
 
-    const update = data =>
+    let done = false;
+
+    const update = data => {
+      if (done) {
+        throw new Error('Trying to update completed test: ' + name);
+      }
+
       this.setState(state => ({
         tests: state.tests.map(test => {
           if (test.id === id) {
@@ -129,6 +163,9 @@ class BlobTest extends Component {
           return test;
         }),
       }));
+
+      done = data.status === 'passed' || data.status === 'failed';
+    };
 
     const t = {
       pass() {
@@ -148,7 +185,7 @@ class BlobTest extends Component {
         if (value === expected) {
           t.pass();
         } else {
-          t.fail(`Received: ${actual}, Expected: ${expected}`);
+          t.fail(`Received: ${value}, Expected: ${expected}`);
         }
       },
       true(value) {
@@ -169,6 +206,27 @@ class BlobTest extends Component {
     }
   };
 
+  _isBlob = blob => {
+    if (!blob instanceof Blob)
+      throw new Error(
+        'Object is not an instance of Blob ' + JSON.stringify(blob)
+      );
+
+    const { size, type } = blob;
+    const { blobId, name } = blob.data;
+
+    if (typeof blobId !== 'string')
+      throw new Error("Blob doesn't have a valid id " + blobId);
+    if (typeof name !== 'undefined' && typeof name !== 'string')
+      throw new Error("Blob doesn't have a valid name " + name);
+    if (typeof size !== 'number' && size <= 0)
+      throw new Error("Blob doesn't have a valid size " + size);
+    if (typeof type !== 'string')
+      throw new Error("Blob doesn't have a valid type " + type);
+
+    return true;
+  };
+
   _handleRefresh = () => {
     this.setState({ refreshing: true, tests: [] });
     this._run();
@@ -179,8 +237,11 @@ class BlobTest extends Component {
   render() {
     return (
       <View style={styles.container}>
-        {Platform.OS === 'android' &&
-          <StatusBar translucent backgroundColor="rgba(0, 0, 0, 0.16)" />}
+        <StatusBar
+          translucent
+          barStyle="light-content"
+          backgroundColor={Platform.OS === 'android' ? 'rgba(0, 0, 0, 0.16)' : 'transparent'}
+        />
         <ScrollView
           refreshControl={
             <RefreshControl
@@ -197,13 +258,13 @@ class BlobTest extends Component {
                   ? '😥'
                   : test.status === 'passed' ? '😃' : '🤔'}
               </Text>
-              <View>
-                <Text style={styles.name}>
+              <View style={styles.details}>
+                <Text style={[styles.text, styles.name]}>
                   {test.name}
                 </Text>
-                <Text style={[styles.status, styles[test.status]]}>
+                <Text style={[styles.text, styles.status, styles[test.status]]}>
                   {test.status === 'failed'
-                    ? `Failed ${test.message ? ` - ${test.message}` : ''}`
+                    ? `Failed ${test.message ? `- ${test.message}` : ''}`
                     : test.status === 'passed'
                       ? 'Passed'
                       : `Running ${test.progress ? `(${test.progress})` : ''}`}
@@ -221,10 +282,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#212733',
-    paddingTop: StatusBar.currentHeight,
   },
   content: {
     padding: 4,
+    paddingTop: Platform.OS === 'ios' ? 26 : StatusBar.currentHeight + 4,
   },
   test: {
     flexDirection: 'row',
@@ -235,17 +296,28 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   emoji: {
-    marginRight: 8,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: Platform.OS === 'ios' ? 32 : 44,
+    padding: 8,
     fontSize: 24,
     color: '#fff',
-    width: 32,
+  },
+  details: {
+    marginLeft: Platform.OS === 'ios' ? 32 : 44,
+  },
+  text: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontWeight: Platform.OS === 'ios' ? 'bold' : 'normal',
   },
   name: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
     color: '#fff',
+    marginBottom: 4,
   },
   status: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontSize: 12,
   },
   running: {
     color: '#FECB66',
@@ -254,7 +326,6 @@ const styles = StyleSheet.create({
     color: '#BAE664',
   },
   failed: {
-    fontWeight: 'bold',
     color: '#E22933',
   },
 });
