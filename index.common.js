@@ -1,14 +1,15 @@
 import React, { Component } from 'react';
 import {
   AppRegistry,
-  ScrollView,
-  View,
-  Text,
   CameraRoll,
-  StatusBar,
-  RefreshControl,
   Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
   StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import * as firebase from 'firebase';
 import uuid from 'uuid';
@@ -33,6 +34,7 @@ type State = {
     progress?: number,
     message?: string,
     status: 'running' | 'passed' | 'failed',
+    retry: Function,
   }>,
 };
 
@@ -125,7 +127,10 @@ class BlobTest extends Component {
       const { edges } = await CameraRoll.getPhotos({ first: 1 });
       const response = await fetch(edges[0].node.image.uri);
       const blob = await response.blob();
-      const response1 = await fetch(`http://localhost:7232/upload?size=${blob.size}`, { method: 'POST', body: blob });
+      const response1 = await fetch(
+        `http://localhost:7232/upload?size=${blob.size}`,
+        { method: 'POST', body: blob }
+      );
 
       t.is(await response1.text(), 'DONE');
     });
@@ -166,17 +171,7 @@ class BlobTest extends Component {
     });
   };
 
-  _test = async (name: string, callback) => {
-    const id = uuid.v4();
-
-    this.setState(state => ({
-      tests: state.tests.concat({
-        id,
-        name,
-        status: 'running',
-      }),
-    }));
-
+  _create = async (id: string, callback) => {
     let done = false;
 
     const update = data => {
@@ -235,6 +230,39 @@ class BlobTest extends Component {
     }
   };
 
+  _test = async (name: string, callback) => {
+    const id = uuid.v4();
+
+    this.setState(
+      state => ({
+        tests: state.tests.concat({
+          id,
+          name,
+          status: 'running',
+          retry: () => {
+            this.setState(
+              state => ({
+                tests: state.tests.map(
+                  test =>
+                    test.id === id
+                      ? {
+                          id,
+                          name,
+                          status: 'running',
+                          retry: test.retry,
+                        }
+                      : test
+                ),
+              }),
+              () => this._create(id, callback)
+            );
+          },
+        }),
+      }),
+      () => this._create(id, callback)
+    );
+  };
+
   _isBlob = blob => {
     if (!blob instanceof Blob)
       throw new Error(
@@ -269,7 +297,9 @@ class BlobTest extends Component {
         <StatusBar
           translucent
           barStyle="light-content"
-          backgroundColor={Platform.OS === 'android' ? 'rgba(0, 0, 0, 0.16)' : 'transparent'}
+          backgroundColor={
+            Platform.OS === 'android' ? 'rgba(0, 0, 0, 0.16)' : 'transparent'
+          }
         />
         <ScrollView
           refreshControl={
@@ -281,25 +311,31 @@ class BlobTest extends Component {
           contentContainerStyle={styles.content}
         >
           {this.state.tests.map(test =>
-            <View key={test.id} style={styles.test}>
-              <Text style={styles.emoji}>
-                {test.status === 'failed'
-                  ? '😥'
-                  : test.status === 'passed' ? '😃' : '🤔'}
-              </Text>
-              <View style={styles.details}>
-                <Text style={[styles.text, styles.name]}>
-                  {test.name}
-                </Text>
-                <Text style={[styles.text, styles.status, styles[test.status]]}>
+            <TouchableOpacity key={test.id} onPress={test.retry}>
+              <View style={styles.test}>
+                <Text style={styles.emoji}>
                   {test.status === 'failed'
-                    ? `Failed ${test.message ? `- ${test.message}` : ''}`
-                    : test.status === 'passed'
-                      ? 'Passed'
-                      : `Running ${test.progress ? `(${test.progress})` : ''}`}
+                    ? '😥'
+                    : test.status === 'passed' ? '😃' : '🤔'}
                 </Text>
+                <View style={styles.details}>
+                  <Text style={[styles.text, styles.name]}>
+                    {test.name}
+                  </Text>
+                  <Text
+                    style={[styles.text, styles.status, styles[test.status]]}
+                  >
+                    {test.status === 'failed'
+                      ? `Failed ${test.message ? `- ${test.message}` : ''}`
+                      : test.status === 'passed'
+                        ? 'Passed'
+                        : `Running ${test.progress
+                            ? `(${test.progress})`
+                            : ''}`}
+                  </Text>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         </ScrollView>
       </View>
