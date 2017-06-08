@@ -285,10 +285,11 @@ class BlobTest extends Component {
   };
 
   _handleRefresh = () => {
-    this.setState({ refreshing: true, tests: [] });
-    this._run();
+    this.setState({ refreshing: true });
 
-    setTimeout(() => this.setState({ refreshing: false }), 500);
+    this.state.tests.forEach(t => t.retry());
+
+    setTimeout(() => this.setState({ refreshing: false }), 200);
   };
 
   render() {
