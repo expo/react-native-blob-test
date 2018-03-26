@@ -1,5 +1,5 @@
 {
-  "name": "BlobTest",
+  "name": "blob-test",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -8,16 +8,16 @@
   },
   "dependencies": {
     "firebase": "^3.7.4",
-    "react": "^16.0.0-alpha.6",
-    "react-native": "file:../react-native",
-    "uuid": "^3.0.1",
-    "ws": "^2.2.2"
+    "react": "~16.3.0-alpha.1",
+    "react-native": "~0.54.2",
+    "uuid": "^3.2.1",
+    "ws": "^5.1.0"
   },
   "devDependencies": {
-    "babel-jest": "19.0.0",
-    "babel-preset-react-native": "1.9.1",
-    "jest": "19.0.2",
-    "react-test-renderer": "~15.4.1"
+    "babel-jest": "22.4.3",
+    "babel-preset-react-native": "4.0.0",
+    "jest": "22.4.3",
+    "react-test-renderer": "~16.3.0-alpha.1"
   },
   "jest": {
     "preset": "react-native"

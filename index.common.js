@@ -139,7 +139,10 @@ class BlobTest extends Component {
       const { edges } = await CameraRoll.getPhotos({ first: 1 });
       const response = await fetch(edges[0].node.image.uri);
       const blob = await response.blob();
-      const ref = firebase.storage().ref().child(uuid.v4());
+      const ref = firebase
+        .storage()
+        .ref()
+        .child(uuid.v4());
 
       const task = ref.put(blob);
 
@@ -198,11 +201,12 @@ class BlobTest extends Component {
       fail(error: string | Error) {
         update({
           status: 'failed',
-          message: typeof error === 'string'
-            ? error
-            : error instanceof Error || error.message
-              ? error.message
-              : undefined,
+          message:
+            typeof error === 'string'
+              ? error
+              : error instanceof Error || error.message
+                ? error.message
+                : undefined,
         });
       },
       is(value, expected) {
@@ -311,7 +315,7 @@ class BlobTest extends Component {
           }
           contentContainerStyle={styles.content}
         >
-          {this.state.tests.map(test =>
+          {this.state.tests.map(test => (
             <TouchableOpacity key={test.id} onPress={test.retry}>
               <View style={styles.test}>
                 <Text style={styles.emoji}>
@@ -320,9 +324,7 @@ class BlobTest extends Component {
                     : test.status === 'passed' ? '😃' : '🤔'}
                 </Text>
                 <View style={styles.details}>
-                  <Text style={[styles.text, styles.name]}>
-                    {test.name}
-                  </Text>
+                  <Text style={[styles.text, styles.name]}>{test.name}</Text>
                   <Text
                     style={[styles.text, styles.status, styles[test.status]]}
                   >
@@ -330,14 +332,14 @@ class BlobTest extends Component {
                       ? `Failed ${test.message ? `- ${test.message}` : ''}`
                       : test.status === 'passed'
                         ? 'Passed'
-                        : `Running ${test.progress
-                            ? `(${test.progress})`
-                            : ''}`}
+                        : `Running ${
+                            test.progress ? `(${test.progress})` : ''
+                          }`}
                   </Text>
                 </View>
               </View>
             </TouchableOpacity>
-          )}
+          ))}
         </ScrollView>
       </View>
     );
