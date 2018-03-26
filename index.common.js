@@ -108,6 +108,14 @@ class BlobTest extends Component {
       req.send(blob);
     });
 
+    this._test('Works with no-content response via fetch', async t => {
+      const response = await fetch('http://localhost:7232/no-content');
+      const data = response.text();
+
+      t.true(response.status === 204);
+      t.true(data === '');
+    });
+
     this._test('Downloads blob via fetch', async t => {
       const response = await fetch(url);
       const blob = await response.blob();

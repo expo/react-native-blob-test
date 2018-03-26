@@ -22,6 +22,9 @@ const server = http
           res.end('');
         }
       });
+    } else if (req.method === 'GET' && req.url.startsWith('/no-content')) {
+      res.writeHead(204);
+      res.end();
     } else {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
       res.end('');
